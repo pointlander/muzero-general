@@ -11,6 +11,7 @@ from random import random
 from random import randint
 
 seed(1)
+Size = 8
 
 class MuZeroConfig:
     def __init__(self):
@@ -22,8 +23,8 @@ class MuZeroConfig:
 
 
         ### Game
-        self.observation_shape = (1, 1, 16)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.action_space = list(range(16))  # Fixed list of all possible actions. You should only edit the length
+        self.observation_shape = (1, 1, 2*Size)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.action_space = list(range(2*Size))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(1))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
@@ -80,7 +81,7 @@ class MuZeroConfig:
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results", os.path.basename(__file__)[:-3], datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True  # Save the checkpoint in results_path as model.checkpoint
         self.training_steps = 30000  # Total number of training steps (ie weights update according to a batch)
-        self.batch_size = 256  # Number of parts of games to train on at each training step
+        self.batch_size = 16  # Number of parts of games to train on at each training step
         self.checkpoint_interval = 10  # Number of training steps before using the model for self-playing
         self.value_loss_weight = 1  # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
         self.train_on_gpu = torch.cuda.is_available()  # Train on GPU if available
@@ -158,7 +159,7 @@ class Game(AbstractGame):
         Returns:
             An array of integers, subset of the action space.
         """
-        return list(range(16))
+        return list(range(Size*2))
 
     def reset(self):
         """
@@ -186,34 +187,18 @@ class Game(AbstractGame):
         Returns:
             String representing the action.
         """
-        actions = {
-            0: "0",
-            1: "1",
-            2: "2",
-            3: "3",
-            4: "4",
-            5: "5",
-            6: "6",
-            7: "7",
-            8: "8",
-            9: "9",
-            10: "10",
-            11: "11",
-            12: "12",
-            13: "13",
-            14: "14",
-            15: "15"
-        }
+        for action in range(0, 2*Size):
+            actions[action] = str(action)
         return f"{action_number}. {actions[action_number]}"
 
 class GridEnv:
-    def __init__(self, size=3):
+    def __init__(self, size=Size):
         self.target = 17 * 3
         self.size = size
-        self.values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.values = [0] * (2*Size)
 
     def legal_actions(self):
-        legal_actions = list(range(16))
+        legal_actions = list(range(2*Size))
         return legal_actions
 
     def step(self, action):
@@ -222,22 +207,23 @@ class GridEnv:
         self.values[action] = self.values[action] ^ 1
         pow = 1
         a = 0
-        for x in range(0, 8):
+        for x in range(0, Size):
             a += pow * self.values[x]
             pow = pow * 2
         pow = 1
         b = 0
-        for x in range(8, 16):
+        for x in range(Size, 2*Size):
             b += pow * self.values[x]
             pow = pow * 2
         diff = abs(self.target - a * b)
-        reward = 1 - diff/(256*256)
+        max = 2**Size
+        reward = 1 - diff/(max*max)
         if diff == 0:
             print("solved")
         return self.get_observation(), reward, bool(diff == 0)
 
     def reset(self):
-        for x in range(0, 16):
+        for x in range(0, 2*Size):
             self.values[x] = 0 #randint(0, 1)
         return self.get_observation()
 
